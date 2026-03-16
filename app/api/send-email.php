@@ -230,9 +230,7 @@ function sendWithMail($to, $photoPath, $metadata) {
  * Get download URL for token
  */
 function getDownloadUrl($token) {
-    // Use actual IP address for phone access
-    $host = '172.16.10.214';
-    return 'http://' . $host . '/photobooth/download.php?token=' . $token;
+    return 'https://photobooth.marlowfm.co.uk:8444/download.php?token=' . $token;
 }
 
 /**
