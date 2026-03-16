@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Marlow FM Photobooth</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: #000;
+            height: 100vh;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #fff;
+            cursor: none;
+            /* Used for instant-dismiss fade */
+            transition: opacity 0.35s ease;
+        }
+
+        /* Two slides swapped via crossfade */
+        .slide {
+            position: absolute;
+            inset: 0;
+            background-size: cover;
+            background-position: center;
+            opacity: 0;
+            transition: opacity 2s ease;
+        }
+        .slide.active { opacity: 1; }
+
+        /* Dark blue tint over the photo */
+        .tint {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg,
+                rgba(0,37,123,0.50) 0%,
+                rgba(0,26,85,0.65)  100%);
+            z-index: 1;
+        }
+
+        /* Drifting branding — JS sets top/left and transition */
+        .branding {
+            position: absolute;
+            text-align: center;
+            z-index: 2;
+            pointer-events: none;
+            /* transition added by JS after first placement */
+        }
+
+        .logo {
+            width: 260px;
+            max-width: 40vw;
+            filter: drop-shadow(0 4px 24px rgba(0,0,0,0.8));
+            margin-bottom: 14px;
+            display: block;
+        }
+
+        .frequency {
+            display: none;
+        }
+
+        /* Wake message — fades in for ~6 s every 20 s */
+        .wake-msg {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            text-align: center;
+            padding: 32px 24px 36px;
+            background: linear-gradient(transparent, rgba(0,0,0,0.65));
+            font-size: 1.3rem;
+            font-weight: 500;
+            letter-spacing: 0.3px;
+            z-index: 3;
+            opacity: 0;
+            animation: wakeFlash 20s ease infinite;
+            pointer-events: none;
+        }
+
+        .wake-msg strong {
+            color: #1ab7ea;
+            font-weight: 700;
+        }
+
+        @keyframes wakeFlash {
+            0%    { opacity: 0; }
+            8%    { opacity: 1; }
+            30%   { opacity: 1; }
+            38%   { opacity: 0; }
+            100%  { opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="slide" id="slide-a"></div>
+    <div class="slide" id="slide-b"></div>
+    <div class="tint"></div>
+
+    <div class="branding" id="branding">
+        <img src="/photobooth/assets/mfm_logo.png" alt="Marlow FM" class="logo">
+        <div class="frequency">97.5</div>
+    </div>
+
+    <div class="wake-msg">
+        <strong>Marlow FM Photobooth</strong>
+        &nbsp;&nbsp;·&nbsp;&nbsp;
+        Move the mouse or press any key to wake
+    </div>
+
+    <script>
+        // ── Instant dismiss ───────────────────────────────────────────────────
+        // Fade to black immediately on any input so the user knows it responded.
+        // The idle watcher (polls every 5 s) will then kill this window.
+
+        let dismissed = false;
+        function dismiss() {
+            if (dismissed) return;
+            dismissed = true;
+            document.body.style.opacity = '0';
+        }
+
+        ['mousemove', 'mousedown', 'keydown', 'touchstart'].forEach(evt => {
+            window.addEventListener(evt, dismiss, { once: true, passive: true });
+        });
+
+        // ── Drifting logo ─────────────────────────────────────────────────────
+        // Slowly drifts to a new random position every 9 s (8 s transition).
+
+        const branding    = document.getElementById('branding');
+        const BRAND_W     = 280;   // approx rendered width  (px)
+        const BRAND_H     = 230;   // approx rendered height (px)
+        const EDGE_MARGIN = 30;    // min distance from screen edge (px)
+
+        function randomBrandPos() {
+            const maxLeft = Math.max(EDGE_MARGIN, window.innerWidth  - BRAND_W - EDGE_MARGIN);
+            const maxTop  = Math.max(EDGE_MARGIN, window.innerHeight - BRAND_H - EDGE_MARGIN);
+            return {
+                left: EDGE_MARGIN + Math.floor(Math.random() * (maxLeft - EDGE_MARGIN)),
+                top:  EDGE_MARGIN + Math.floor(Math.random() * (maxTop  - EDGE_MARGIN))
+            };
+        }
+
+        // Place immediately (no transition yet) so there's no initial slide-in
+        const start = randomBrandPos();
+        branding.style.left = start.left + 'px';
+        branding.style.top  = start.top  + 'px';
+
+        // Enable smooth transition after first paint
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                branding.style.transition = 'top 16s ease-in-out, left 16s ease-in-out';
+            });
+        });
+
+        function driftLogo() {
+            const pos = randomBrandPos();
+            branding.style.left = pos.left + 'px';
+            branding.style.top  = pos.top  + 'px';
+        }
+
+        setInterval(driftLogo, 18000);
+
+        // ── Photo slideshow ───────────────────────────────────────────────────
+
+        const slideA = document.getElementById('slide-a');
+        const slideB = document.getElementById('slide-b');
+        const slides = [slideA, slideB];
+
+        let current  = 0;
+        let photos   = [];
+        let photoIdx = 0;
+
+        async function loadPhotos() {
+            try {
+                const res  = await fetch('/photobooth/api/random-photos.php?limit=50');
+                const data = await res.json();
+                if (data.photos?.length) {
+                    photos   = [...data.photos].sort(() => Math.random() - 0.5);
+                    photoIdx = 0;
+                }
+            } catch (e) {
+                console.warn('Could not load photos for screensaver:', e);
+            }
+        }
+
+        function nextPhoto() {
+            if (!photos.length) return;
+
+            const rawPath  = photos[photoIdx % photos.length];
+            const path     = rawPath.replace(/^\/photos\//, '');
+            const thumbUrl = '/photobooth/thumbs.php?path='
+                           + encodeURIComponent(path) + '&w=1366';
+
+            const next = 1 - current;
+            const img  = new Image();
+            img.onload = () => {
+                slides[next].style.backgroundImage = `url('${thumbUrl}')`;
+                slides[next].classList.add('active');
+                slides[current].classList.remove('active');
+                current = next;
+            };
+            img.src = thumbUrl;
+
+            photoIdx++;
+            if (photoIdx >= photos.length) {
+                photoIdx = 0;
+                photos.sort(() => Math.random() - 0.5);
+            }
+        }
+
+        async function init() {
+            await loadPhotos();
+            nextPhoto();
+            setInterval(nextPhoto,  7000);
+            setInterval(loadPhotos, 60 * 60 * 1000);
+        }
+
+        init();
+    </script>
+</body>
+</html>

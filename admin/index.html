@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Marlow FM Photobooth - Admin</title>
+    <link rel="stylesheet" href="css/admin.css">
+</head>
+<body>
+    <div class="admin-container">
+        <!-- Login Screen -->
+        <section id="login-screen" class="screen active">
+            <div class="login-box">
+                <img src="/photobooth/assets/mfm_logo.png" alt="Marlow FM" class="login-logo">
+                <h1>Admin Login</h1>
+                <form id="login-form">
+                    <div class="form-group">
+                        <label for="username">Username</label>
+                        <input type="text" id="username" name="username" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <input type="password" id="password" name="password" required>
+                    </div>
+                    <button type="submit" class="btn-login">Login</button>
+                    <div id="login-error" class="error-message hidden"></div>
+                </form>
+            </div>
+        </section>
+
+        <!-- Admin Dashboard -->
+        <section id="dashboard-screen" class="screen hidden">
+            <nav class="admin-sidebar">
+                <div class="sidebar-header">
+                    <img src="/photobooth/assets/mfm_logo.png" alt="Marlow FM">
+                    <span>Admin Panel</span>
+                </div>
+                <ul class="nav-menu">
+                    <li><a href="#" data-page="overview" class="active">📊 Overview</a></li>
+                    <li><a href="#" data-page="photos">📷 Photos</a></li>
+                    <li><a href="#" data-page="schedule">📅 Schedule</a></li>
+                    <li><a href="#" data-page="email">📧 Email Settings</a></li>
+                    <li><a href="#" data-page="system">⚙️ System</a></li>
+                    <li><a href="#" data-page="logs">📋 Logs</a></li>
+                    <li><a href="/photobooth/" target="_blank">🔙 Back to Photobooth</a></li>
+                    <li><a href="#" id="logout-btn">🚪 Logout</a></li>
+                </ul>
+            </nav>
+
+            <main class="admin-content">
+                <!-- Overview Page -->
+                <div id="page-overview" class="page active">
+                    <h2>Dashboard Overview</h2>
+                    
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <h3>Photos Today</h3>
+                            <p class="stat-value" id="stat-today">-</p>
+                        </div>
+                        <div class="stat-card">
+                            <h3>Photos This Week</h3>
+                            <p class="stat-value" id="stat-week">-</p>
+                        </div>
+                        <div class="stat-card">
+                            <h3>Disk Usage</h3>
+                            <p class="stat-value" id="stat-disk">-</p>
+                        </div>
+                        <div class="stat-card">
+                            <h3>Email Queue</h3>
+                            <p class="stat-value" id="stat-email">-</p>
+                        </div>
+                    </div>
+
+                    <div class="recent-photos">
+                        <h3>Recent Photos</h3>
+                        <table id="recent-photos-table">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Show</th>
+                                    <th>Presenter</th>
+                                    <th>Guests</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+
+                    <div class="system-status">
+                        <h3>System Status</h3>
+                        <div class="status-items">
+                            <div class="status-item">
+                                <span class="status-label">Camera:</span>
+                                <span class="status-value" id="status-camera">Checking...</span>
+                            </div>
+                            <div class="status-item">
+                                <span class="status-label">Apache:</span>
+                                <span class="status-value" id="status-apache">Checking...</span>
+                            </div>
+                            <div class="status-item">
+                                <span class="status-label">Email (SMTP):</span>
+                                <span class="status-value" id="status-smtp">Checking...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Photos Page -->
+                <div id="page-photos" class="page hidden">
+                    <h2>Photo Management</h2>
+                    
+                    <div class="filters">
+                        <input type="date" id="filter-date" placeholder="Filter by date">
+                        <input type="text" id="filter-show" placeholder="Filter by show">
+                        <input type="text" id="filter-name" placeholder="Filter by name">
+                        <button id="btn-apply-filter">Apply</button>
+                        <button id="btn-clear-filter">Clear</button>
+                    </div>
+
+                    <div class="photo-grid" id="photo-grid"></div>
+
+                    <div class="bulk-actions">
+                        <button id="btn-delete-selected" class="btn-danger">Delete Selected</button>
+                        <button id="btn-export-selected" class="btn-primary">Export Selected (ZIP)</button>
+                    </div>
+                </div>
+
+                <!-- Schedule Page -->
+                <div id="page-schedule" class="page hidden">
+                    <h2>Show Schedule</h2>
+                    
+                    <div class="schedule-info">
+                        <p><strong>Current Show:</strong> <span id="current-show-display">-</span></p>
+                        <p><strong>Schedule File:</strong> /home/marlowfm/photobooth-config/schedule.json</p>
+                    </div>
+
+                    <table class="schedule-table">
+                        <thead>
+                            <tr>
+                                <th>Day</th>
+                                <th>Time</th>
+                                <th>Show</th>
+                            </tr>
+                        </thead>
+                        <tbody id="schedule-tbody"></tbody>
+                    </table>
+                </div>
+
+                <!-- Email Settings Page -->
+                <div id="page-email" class="page hidden">
+                    <h2>Email Configuration</h2>
+                    
+                    <form id="email-settings-form">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>SMTP Host</label>
+                                <input type="text" name="smtp_host" value="smtp.ionos.co.uk">
+                            </div>
+                            <div class="form-group">
+                                <label>SMTP Port</label>
+                                <input type="number" name="smtp_port" value="587">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>SMTP Username</label>
+                                <input type="text" name="smtp_user" value="studio@marlowfm.co.uk">
+                            </div>
+                            <div class="form-group">
+                                <label>From Email</label>
+                                <input type="email" name="smtp_from" value="studio@marlowfm.co.uk">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>SMTP Password</label>
+                            <input type="password" name="smtp_pass" placeholder="Current password stored in config">
+                        </div>
+                        <button type="button" id="btn-test-email" class="btn-primary">Send Test Email</button>
+                        <button type="submit" class="btn-primary">Save Settings</button>
+                        <div id="email-test-result" class="result-message"></div>
+                    </form>
+                </div>
+
+                <!-- System Page -->
+                <div id="page-system" class="page hidden">
+                    <h2>System Settings</h2>
+                    
+                    <div class="settings-section">
+                        <h3>Camera Settings</h3>
+                        <form id="camera-settings-form">
+                            <div class="form-group">
+                                <label>Camera Device</label>
+                                <select name="camera_device">
+                                    <option value="/dev/video0">/dev/video0 (Toshiba Built-in)</option>
+                                    <option value="/dev/video2" selected>/dev/video2 (USB HD Webcam)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Resolution</label>
+                                <select name="resolution">
+                                    <option value="1920x1080">1920x1080 (Full HD)</option>
+                                    <option value="1280x720">1280x720 (HD)</option>
+                                    <option value="640x480">640x480 (VGA)</option>
+                                </select>
+                            </div>
+                            <button type="submit" class="btn-primary">Save Camera Settings</button>
+                        </form>
+                    </div>
+
+                    <div class="settings-section">
+                        <h3>Storage</h3>
+                        <p>Photo Directory: <code>/photos</code></p>
+                        <p>Retention: <strong>365 days</strong></p>
+                        <button id="btn-cleanup" class="btn-warning">Run Cleanup Now</button>
+                    </div>
+
+                    <div class="settings-section">
+                        <h3>Kiosk Mode</h3>
+                        <button id="btn-restart-kiosk" class="btn-warning">Restart Kiosk Browser</button>
+                    </div>
+                </div>
+
+                <!-- Logs Page -->
+                <div id="page-logs" class="page hidden">
+                    <h2>System Logs</h2>
+                    
+                    <div class="log-tabs">
+                        <button class="tab-btn active" data-log="email">Email Log</button>
+                        <button class="tab-btn" data-log="capture">Capture Log</button>
+                        <button class="tab-btn" data-log="system">System Log</button>
+                    </div>
+                    
+                    <pre id="log-content" class="log-viewer"></pre>
+                    
+                    <button id="btn-refresh-log" class="btn-primary">Refresh Log</button>
+                    <button id="btn-clear-log" class="btn-warning">Clear Log</button>
+                </div>
+            </main>
+        </section>
+    </div>
+
+    <script src="js/admin.js"></script>
+</body>
+</html>

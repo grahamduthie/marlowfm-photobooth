@@ -1,0 +1,21 @@
+# Composer dependencies - run `composer install` in app/
+app/vendor/
+
+# Symlink to local photo storage - machine-specific
+app/photos
+
+# Logs
+logs/*.log
+
+# Thumbnails cache (regenerated automatically)
+app/photos/thumbs/
+
+# OS / editor
+.DS_Store
+*.swp
+*~
+
+# Sensitive config lives outside this directory
+# at /home/marlowfm/photobooth-config/config.php
+# and /home/marlowfm/photobooth-config/schedule.json
+# Do NOT commit credentials here.

@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Marlow FM Photobooth</title>
+    <link rel="stylesheet" href="css/photobooth.css">
+</head>
+<body>
+    <div id="app">
+        <main id="main-content">
+
+            <!-- ── Welcome Screen ─────────────────────────────────────── -->
+            <section id="welcome-screen" class="screen active">
+                <div class="welcome-content">
+                    <div class="welcome-left">
+                        <img src="/photobooth/assets/mfm_logo.png" alt="Marlow FM 97.5" class="welcome-logo">
+                        <h1>Marlow FM Photobooth</h1>
+                        <p class="welcome-text">Strike a pose and capture the moment!</p>
+                        <div class="welcome-actions">
+                            <button id="btn-start" class="btn-start">📸 Take a Photo</button>
+                            <a href="/photobooth/gallery.php" class="btn-gallery">📷 View Gallery</a>
+                        </div>
+                    </div>
+                    <div class="welcome-right">
+                        <div class="photo-scrapbook" id="photo-scrapbook">
+                            <!-- Random photos loaded here by JS -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ── Camera / Preview Screen ────────────────────────────── -->
+            <section id="preview-screen" class="screen">
+                <div class="preview-container">
+                    <video id="camera-preview" autoplay playsinline></video>
+                    <div class="preview-overlay">
+                        <div id="countdown" class="countdown hidden"></div>
+                    </div>
+                    <div class="preview-buttons">
+                        <button id="btn-capture" class="btn-primary btn-capture">Take Photo</button>
+                        <button id="btn-back" class="btn-secondary">← Back</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ── Result Screen ──────────────────────────────────────── -->
+            <section id="result-screen" class="screen">
+
+                <!-- Left: photo -->
+                <div class="result-photo-panel">
+                    <img id="captured-photo" src="" alt="Your photo">
+                </div>
+
+                <!-- Right: actions card -->
+                <div class="result-actions-panel">
+
+                    <div class="result-panel-header">
+                        <img src="/photobooth/assets/mfm_logo.png" alt="Marlow FM" class="result-panel-logo">
+                        <span>Your Photo! &ndash; Please edit the title and details</span>
+                    </div>
+
+                    <!-- Photo Details (always visible) -->
+                    <div class="panel-section details-section">
+                        <div class="detail-row">
+                            <label for="photo-title">Title</label>
+                            <input type="text" id="photo-title" placeholder="Saving photo…">
+                        </div>
+                        <div class="detail-row">
+                            <label for="people-names">Who's in this photo?</label>
+                            <input type="text" id="people-names" placeholder="e.g. Sarah Jones, guests… (optional)">
+                        </div>
+                        <div class="detail-row">
+                            <label for="show-select">Show</label>
+                            <select id="show-select">
+                                <option value="">Select show…</option>
+                            </select>
+                            <input type="text" id="show-custom" class="hidden" placeholder="Type the show name…">
+                        </div>
+                        <div id="update-status" class="update-status-msg"></div>
+                    </div>
+
+                    <!-- QR Code -->
+                    <div class="panel-section qr-section">
+                        <h3 class="section-heading">📱 Save to your phone</h3>
+                        <div id="qr-area">
+                            <div id="qr-spinner" class="qr-loading">
+                                <div class="spinner-ring"></div>
+                                <p>Preparing your photo&hellip;</p>
+                            </div>
+                            <div id="qr-ready" class="hidden">
+                                <div id="qr-code"></div>
+                                <p class="qr-hint">Scan with your phone camera</p>
+                            </div>
+                            <div id="qr-error" class="hidden qr-error-state"></div>
+                        </div>
+                    </div>
+
+                    <!-- Email -->
+                    <div class="panel-section email-section">
+                        <h3 class="section-heading">📧 Email this photo</h3>
+                        <div class="email-row">
+                            <input type="email" id="email-address" placeholder="your@email.com">
+                            <button id="btn-send-email" class="btn-email-send">Send</button>
+                        </div>
+                        <div id="email-status" class="email-status-msg"></div>
+                    </div>
+
+                </div><!-- /.result-actions-panel -->
+
+                <!-- Bottom navigation bar -->
+                <div class="result-bottom-bar">
+                    <button id="btn-retake" class="btn-retake">📸 Take Another</button>
+                    <button id="btn-done" class="btn-done">✓ All Done</button>
+                </div>
+
+            </section><!-- /#result-screen -->
+
+        </main>
+    </div>
+
+    <!-- Transient status overlay (camera errors etc.) -->
+    <div id="status-overlay" class="status-overlay hidden">
+        <div class="status-content">
+            <p id="status-message"></p>
+        </div>
+    </div>
+
+    <script src="js/photobooth.js?v=4"></script>
+</body>
+</html>
