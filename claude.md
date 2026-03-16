@@ -259,7 +259,9 @@ Sent via IONOS SMTP. Content:
 - Body: "Thanks for visiting the Marlow FM Photobooth! Here's your photo:"
 - Details box: title / show / people — each on its own line (any empty fields omitted)
 - Embedded photo (CID attachment)
-- Download link + expiry notice
+- Download link (`https://photobooth.marlowfm.co.uk:8444/download.php?token=...`) + expiry notice
+
+The download link in emails uses the same remote HTTPS URL as the QR code — **not** the local machine IP. This means the link works for recipients anywhere, not just on the studio network, and is unaffected by the local machine's IP address changing.
 
 ---
 
@@ -526,6 +528,7 @@ curl -s "https://photobooth.marlowfm.co.uk:8444/thumbs.php?path=YYYY/MM/DD/filen
 | Cert renewal fails | Check IONOS API key valid; check DNS propagation; `certbot renew --dry-run` |
 | Camera not detected | Check `/dev/video2`; restart browser |
 | Email fails | Check IONOS SMTP credentials in config.php; check `logs/email.log` |
+| Email download link not working | Ensure `getDownloadUrl()` in `send-email.php` uses the remote HTTPS URL, not the local machine IP |
 | Wrong show auto-detected | Edit `/home/marlowfm/photobooth-config/schedule.json` |
 | Apache won't start on remote | `sudo apache2ctl configtest`; check cert paths exist |
 | `ServerTokens` not taking effect | Edit `/etc/apache2/conf-available/security.conf` directly (loads after `security-hardening.conf` alphabetically) |

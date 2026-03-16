@@ -183,7 +183,7 @@ Edit three files to use your machine's local IP address:
 const downloadUrl = 'http://192.168.YOUR.IP/photobooth/download.php?token=' + this.photoToken;
 ```
 
-> **Note:** Phones must be on the same Wi-Fi network as this machine to use the QR code. If you want phone downloads to work from anywhere, you will need the two-machine setup or a port-forwarding arrangement.
+> **Note:** Phones must be on the same Wi-Fi network as this machine to use the QR code. If you want phone downloads to work from anywhere — including email links — you will need the two-machine setup or a port-forwarding arrangement. Also update `getDownloadUrl()` in `app/api/send-email.php` to match whatever URL you use for the QR code, so email links and QR codes are consistent.
 
 ### 7. Configure Apache
 
