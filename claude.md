@@ -71,6 +71,29 @@ SSH key from local marlowfm user is already installed on broadcast@10.10.0.165 (
 
 ---
 
+## GitHub Access
+
+Repository: `https://github.com/grahamduthie/marlowfm-photobooth`
+
+The remote URL has a Personal Access Token embedded so `git push` works without prompting:
+
+```bash
+git remote get-url origin  # should show token embedded in URL
+git push                   # works directly, no credentials needed
+```
+
+If the token expires (GitHub PATs can be set to expire), regenerate at:
+**GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic)**
+needs `repo` scope, then:
+
+```bash
+git remote set-url origin https://NEW_TOKEN@github.com/grahamduthie/marlowfm-photobooth.git
+```
+
+Note: this environment has no TTY so `git config credential.helper store` does not work — the token must be embedded in the remote URL as above.
+
+---
+
 ## Directory Structure
 
 ### Local machine
