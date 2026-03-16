@@ -10,6 +10,18 @@ header('Access-Control-Allow-Origin: *');
 $photosDir = '/photos';
 $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 6;
 
+// Build set of soft-deleted filenames to exclude
+$deletedFiles = [];
+$metadataFile = $photosDir . '/.metadata.json';
+if (file_exists($metadataFile)) {
+    $allMetadata = json_decode(file_get_contents($metadataFile), true) ?? [];
+    foreach ($allMetadata as $meta) {
+        if (!empty($meta['deleted'])) {
+            $deletedFiles[$meta['filename_branded'] ?? ''] = true;
+        }
+    }
+}
+
 // Find all branded photos (they have the logo overlay)
 $photos = [];
 $iterator = new RecursiveIteratorIterator(
@@ -17,9 +29,10 @@ $iterator = new RecursiveIteratorIterator(
 );
 
 foreach ($iterator as $file) {
-    if ($file->isFile() && 
-        $file->getExtension() === 'jpg' && 
+    if ($file->isFile() &&
+        $file->getExtension() === 'jpg' &&
         strpos($file->getFilename(), '_branded.jpg') !== false) {
+        if (isset($deletedFiles[$file->getFilename()])) continue;
         // Get web-accessible URL path
         $relativePath = '/photos' . str_replace($photosDir, '', $file->getPathname());
         $photos[] = $relativePath;

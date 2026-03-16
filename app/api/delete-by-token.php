@@ -38,6 +38,15 @@ if (!$meta) {
     exit;
 }
 
+// If this photo was emailed, keep the files so the download link still works.
+// Just mark it as deleted so it no longer appears in the gallery.
+if (!empty($meta['emailed'])) {
+    $allMetadata[$token]['deleted'] = true;
+    file_put_contents($metadataFile, json_encode($allMetadata, JSON_PRETTY_PRINT));
+    echo json_encode(['success' => true, 'deleted' => [], 'note' => 'Photo was emailed; files retained for download link']);
+    exit;
+}
+
 $datePath    = date('Y/m/d', strtotime($meta['created']));
 $dir         = PHOTO_BASE_DIR . '/' . $datePath;
 $deleted     = [];

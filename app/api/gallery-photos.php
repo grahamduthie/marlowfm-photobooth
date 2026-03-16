@@ -10,7 +10,12 @@
  *   show       string  filter by show name (optional)
  */
 
+// Prevent browser caching - gallery must always show latest photos
 header('Content-Type: application/json');
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+header('Expires: 0');
+
 require_once '/home/marlowfm/photobooth-config/config.php';
 
 $page       = max(1, (int)($_GET['page']     ?? 1));
@@ -30,6 +35,7 @@ $photos     = [];
 $showCounts = [];
 
 foreach ($allMetadata as $token => $meta) {
+    if (!empty($meta['deleted'])) continue;
     $created   = $meta['created'] ?? '';
     if (!$created) continue;
 

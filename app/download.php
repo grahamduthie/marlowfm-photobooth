@@ -258,7 +258,7 @@ $isAndroid = (bool) preg_match('/android/', $ua);
         </div>
 
         <div class="save-card">
-            <h2>💾 Save this photo to your phone</h2>
+            <h2>💾 Save this photo to your device</h2>
 
             <!-- iOS instructions -->
             <div class="instr-ios <?= $isIOS ? 'visible' : '' ?>">

@@ -81,6 +81,13 @@ if (file_exists($metadataFile)) {
     }
     
     if ($tokenToRemove) {
+        // If the photo was emailed, soft-delete only — keep files for the download link
+        if (!empty($allMetadata[$tokenToRemove]['emailed'])) {
+            $allMetadata[$tokenToRemove]['deleted'] = true;
+            file_put_contents($metadataFile, json_encode($allMetadata, JSON_PRETTY_PRINT));
+            echo json_encode(['success' => true, 'deleted' => [], 'note' => 'Photo was emailed; files retained for download link']);
+            exit;
+        }
         unset($allMetadata[$tokenToRemove]);
         file_put_contents($metadataFile, json_encode($allMetadata, JSON_PRETTY_PRINT));
         $deleted[] = 'metadata entry';

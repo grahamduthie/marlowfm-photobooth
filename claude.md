@@ -1,6 +1,6 @@
 # Marlow FM Photobooth - AI Assistant Context
 
-**Last updated:** 2026-03-16
+**Last updated:** 2026-03-16 — Kiosk boot fix, photo sequence fix, sync permissions fix, filename show-name removed, emailed-photo soft-delete, download page wording fix
 
 ---
 
@@ -153,11 +153,17 @@ SSH key from local marlowfm user is already installed on broadcast@10.10.0.165 (
 ### Naming & storage
 
 ```
-/photos/YYYY/MM/DD/DD-MM-YYYY_ShowName_###_clean.jpg
-/photos/YYYY/MM/DD/DD-MM-YYYY_ShowName_###_branded.jpg
+/photos/YYYY/MM/DD/DD-MM-YYYY_HHMMSS_###_clean.jpg
+/photos/YYYY/MM/DD/DD-MM-YYYY_HHMMSS_###_branded.jpg
 ```
 
 `_clean` and `_branded` are now **identical** — the logo is composited in the browser at capture time. The server just copies clean→branded for naming compatibility.
+
+Show name, presenter, and guests are **not** included in the filename — they are stored in metadata only. This means renaming the show in the result screen is fully reflected everywhere without any filename mismatch.
+
+### Sequence Numbers
+
+Sequence is a shared daily counter across all shows (e.g. the 5th photo of the day is always `_005` regardless of show). `capture.php` finds MAX sequence from `DD-MM-YYYY_*_clean.jpg` files and increments by 1.
 
 ### Metadata
 
@@ -167,24 +173,28 @@ SSH key from local marlowfm user is already installed on broadcast@10.10.0.165 (
 {
   "460a2c80...": {
     "token": "460a2c80...",
-    "filename_clean": "16-03-2026_Breakfast_001_clean.jpg",
-    "filename_branded": "16-03-2026_Breakfast_001_branded.jpg",
+    "filename_clean": "16-03-2026_103045_001_clean.jpg",
+    "filename_branded": "16-03-2026_103045_001_branded.jpg",
     "title": "16 Mar 2026 - Photo 001",
     "show": "Breakfast",
     "people": "Graham Jones",
     "presenter": "Graham Jones",
     "guests": "",
     "created": "2026-03-16 10:00:00",
-    "expires": "2026-04-15 10:00:00"
+    "expires": "2026-04-15 10:00:00",
+    "emailed": true,
+    "deleted": true
   }
 }
 ```
 
 Fields:
 - `title` — user-editable; default is `"DD Mon YYYY - Photo NNN"`
-- `show` — show name (from schedule or typed)
+- `show` — show name set by the user (from schedule or typed); updated via `update-details.php`
 - `people` — "Who's in this photo?" (new field)
 - `presenter` / `guests` — legacy fields kept for compatibility
+- `emailed` — set to `true` after a successful email send; triggers soft-delete behaviour
+- `deleted` — set to `true` when user deletes a photo that was emailed; files are kept so the download link continues to work; entry is hidden from gallery and scrapbook
 
 ---
 
@@ -231,7 +241,9 @@ Shown when a phone scans the QR code. Displays:
 - The branded photo
 - Platform-specific save instructions + button
 
-Both local (`/photobooth/download.php`) and remote (`/var/www/photobooth/download.php`) are kept in sync — when the local file changes, it must be manually deployed to remote via scp + sed path adjustments.
+Both local (`/photobooth/download.php`) and remote (`/var/www/photobooth/download.php`) are kept in sync — when the local file changes, it must be deployed to remote via scp + sed path adjustments (see deploy command below).
+
+The save heading reads **"Save this photo to your device"** (changed from "phone" — the link is also opened on desktops from email).
 
 Path differences between local and remote `download.php`:
 - Local: `require_once '/home/marlowfm/photobooth-config/config.php'`, URLs use `/photobooth/photos/`, `/photobooth/download.php`, `/photobooth/assets/mfm_logo.png`
@@ -263,6 +275,8 @@ Sent via IONOS SMTP. Content:
 
 The download link in emails uses the same remote HTTPS URL as the QR code — **not** the local machine IP. This means the link works for recipients anywhere, not just on the studio network, and is unaffected by the local machine's IP address changing.
 
+On successful send, `send-email.php` writes `"emailed": true` to the metadata entry. This flag causes `delete-by-token.php` and `delete-photo.php` to perform a **soft-delete** instead of removing the files — see Photo Deletion below.
+
 ---
 
 ## API Endpoints (Local)
@@ -275,7 +289,7 @@ The download link in emails uses the same remote HTTPS URL as the QR code — **
 | `GET /photobooth/api/current-show.php` | GET | Returns current/previous show from schedule |
 | `GET /photobooth/api/schedule.php` | GET | Returns weekly show schedule JSON |
 | `GET /photobooth/api/random-photos.php?limit=50` | GET | Returns random branded photo paths |
-| `GET /photobooth/api/gallery-photos.php` | GET | Paginated photo list with metadata |
+| `GET /photobooth/api/gallery-photos.php` | GET | Paginated photo list with metadata; sends `Cache-Control: no-store` headers |
 | `GET /photobooth/thumbs.php?path=XXX&w=320` | GET | GD-generated thumbnail (cached in photos/thumbs/) |
 | `GET /photobooth/download.php?token=XXX` | GET | Download page (local) |
 
@@ -293,6 +307,9 @@ The download link in emails uses the same remote HTTPS URL as the QR code — **
 - Lightbox: full photo, title, show, people, QR code, edit button
 - Inline edit: title/show/people saved via `update-details.php`
 - Delete with confirmation via `delete-by-token.php`
+- **Show names** come from `$meta['show']` in metadata — always reflect the user's chosen show name, not the filename
+
+`gallery-photos.php` skips any entry with `deleted: true` (soft-deleted emailed photos).
 
 ## Remote Gallery (`/var/www/photobooth/gallery.php`)
 
@@ -301,6 +318,16 @@ The download link in emails uses the same remote HTTPS URL as the QR code — **
 - Show filter dropdown
 - Data from `gallery-photos.php` on remote
 - Accessible at `https://photobooth.marlowfm.co.uk:8444/gallery.php`
+
+## Photo Deletion
+
+| Condition | Behaviour |
+|-----------|-----------|
+| Photo **not** emailed | Files deleted, metadata entry removed entirely |
+| Photo **was** emailed (`emailed: true`) | Files kept, metadata entry marked `deleted: true`; hidden from gallery and scrapbook, but download link continues to work until expiry |
+
+Both `delete-by-token.php` (used by gallery) and `delete-photo.php` apply this logic.
+`random-photos.php` (scrapbook/screensaver) loads metadata on each request and skips any filename listed in a `deleted: true` entry.
 
 ---
 
@@ -330,10 +357,14 @@ The download link in emails uses the same remote HTTPS URL as the QR code — **
 ## Kiosk Mode
 
 ```bash
-chromium --kiosk --app=http://localhost/photobooth/ --user-data-dir=~/.chromium-photobooth
+chromium --kiosk --user-data-dir=~/.chromium-photobooth http://localhost/photobooth/
 ```
 - Script: `~/start-photobooth-kiosk.sh` (XFCE autostart)
 - Disables X11 blanking; applies display gamma correction
+- **Note:** `--app=` is NOT used with `--kiosk` — they conflict and cause white screen issues
+- **GPU disabled:** `--disable-gpu` flag required on Toshiba C850D-12L (older ATI Radeon fails GPU buffer allocation)
+- **Cache cleared on boot:** Script clears `Cache/`, `Code Cache/`, `GPUCache/` to prevent stale content
+- Brief white screen on startup is normal (Chromium loading)
 - **Escape:** `Alt+F4` or `F11`
 - **Restart:** `pkill chromium && ~/start-photobooth-kiosk.sh`
 
@@ -348,6 +379,10 @@ chromium --kiosk --app=http://localhost/photobooth/ --user-data-dir=~/.chromium-
 - Watches with `inotifywait` for `.jpg` and `.metadata.json` changes
 - Syncs with `--delete` flag — remote mirrors local (deletions propagate)
 - Excludes `thumbs/` cache directory
+- **Remote thumbs ownership:** Must be `broadcast:www-data` for rsync to succeed
+  ```bash
+  ssh broadcast@10.10.0.165 "sudo chown -R broadcast:www-data /var/www/photobooth/photos/thumbs/"
+  ```
 
 ```bash
 systemctl --user status photobooth-sync.service
@@ -524,7 +559,7 @@ curl -s "https://photobooth.marlowfm.co.uk:8444/thumbs.php?path=YYYY/MM/DD/filen
 | QR code not working on phones | Check sync log; check remote Apache; test URL with curl |
 | Title/details not saving | `update-details.php` requires show field; defaults to "Marlow FM" if blank |
 | Remote download page not showing title | `download.php` on remote must be manually deployed after local changes (see deploy command above) |
-| Photo sync stuck | `systemctl --user restart photobooth-sync.service` |
+| Photo sync stuck | `systemctl --user restart photobooth-sync.service`; check remote thumbs ownership |
 | Cert renewal fails | Check IONOS API key valid; check DNS propagation; `certbot renew --dry-run` |
 | Camera not detected | Check `/dev/video2`; restart browser |
 | Email fails | Check IONOS SMTP credentials in config.php; check `logs/email.log` |
@@ -533,4 +568,11 @@ curl -s "https://photobooth.marlowfm.co.uk:8444/thumbs.php?path=YYYY/MM/DD/filen
 | Apache won't start on remote | `sudo apache2ctl configtest`; check cert paths exist |
 | `ServerTokens` not taking effect | Edit `/etc/apache2/conf-available/security.conf` directly (loads after `security-hardening.conf` alphabetically) |
 | Screensaver won't stop | `kill -9 $(cat /tmp/screensaver.pid); rm /tmp/screensaver.pid` |
-| Remote thumbs directory wrong owner | `sudo chown -R www-data:www-data /var/www/photobooth/photos/thumbs/` |
+| Remote thumbs directory wrong owner | `sudo chown -R broadcast:www-data /var/www/photobooth/photos/thumbs/` |
+| **White screen on kiosk boot** | GPU buffer allocation failure; ensure `--disable-gpu` flag in `~/start-photobooth-kiosk.sh` |
+| **Multiple photos get same sequence number** | `capture.php` finds MAX sequence across all today's `_clean.jpg` files; clear browser cache if still seen |
+| **Gallery shows duplicate photos** | Browser cache; API now sends `Cache-Control: no-store` headers; hard refresh (Ctrl+F5) |
+| **Sync fails with "Permission denied"** | Remote thumbs ownership wrong; run `ssh broadcast@10.10.0.165 "sudo chown -R broadcast:www-data /var/www/photobooth/photos/thumbs/"` |
+| **Gallery shows wrong show name** | Show names come from metadata, not filenames; if stale, user can edit in gallery lightbox |
+| **Deleted photo still reachable via QR/email link** | Expected — emailed photos are soft-deleted (files kept) so the download link stays valid until expiry |
+| **Deleted photo still appearing in scrapbook** | Soft-deleted photo's filename not yet excluded; check `emailed`/`deleted` flags are set in `.metadata.json` |

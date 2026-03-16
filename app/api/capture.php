@@ -26,19 +26,14 @@ if (!isset($_FILES['photo']) || $_FILES['photo']['error'] !== UPLOAD_ERR_OK) {
 // Generate unique token
 $token = bin2hex(random_bytes(16));
 
-// Create filename
+// Create filename — date + time + sequence only (show name stored in metadata, not filename)
 $dateStr  = date(FILENAME_FORMAT);
-$seqNum   = getPhotoSequence($dateStr, $show);
+$timeStr  = date('His');
+$seqNum   = getPhotoSequence($dateStr);
 $sequence = str_pad($seqNum, 3, '0', STR_PAD_LEFT);
 $defaultTitle = date('d M Y') . ' - Photo ' . $sequence;
 
-// Build filename parts
-$filenameParts = [$dateStr, sanitizeFilename($show)];
-if ($presenter) $filenameParts[] = sanitizeFilename($presenter);
-if ($guests) $filenameParts[] = sanitizeFilename($guests);
-$filenameParts[] = $sequence;
-
-$baseFilename = implode('_', $filenameParts);
+$baseFilename = $dateStr . '_' . $timeStr . '_' . $sequence;
 
 // Create directory structure
 $dirPath = PHOTO_BASE_DIR . '/' . date('Y/m/d');
@@ -88,16 +83,33 @@ echo json_encode([
 ]);
 
 /**
- * Get sequence number for today's photos
+ * Get the next sequence number for today's photos.
+ * Scans all _clean.jpg files for today and returns MAX sequence + 1.
+ * Show name is no longer part of the filename so all photos share one sequence.
  */
-function getPhotoSequence($dateStr, $show) {
+function getPhotoSequence($dateStr) {
     $dirPath = PHOTO_BASE_DIR . '/' . date('Y/m/d');
     if (!file_exists($dirPath)) {
         return 1;
     }
-    
-    $files = glob($dirPath . '/' . $dateStr . '_' . sanitizeFilename($show) . '_*.jpg');
-    return count($files) + 1;
+
+    clearstatcache(true, $dirPath);
+
+    // New format: DD-MM-YYYY_HHMMSS_NNN_clean.jpg
+    $files = glob($dirPath . '/' . $dateStr . '_*_clean.jpg') ?: [];
+
+    $maxSeq = 0;
+    foreach ($files as $file) {
+        $basename = basename($file, '_clean.jpg');
+        $parts    = explode('_', $basename);
+        // Last part is always the zero-padded sequence number
+        $seq = (int) end($parts);
+        if ($seq > $maxSeq) {
+            $maxSeq = $seq;
+        }
+    }
+
+    return $maxSeq + 1;
 }
 
 /**

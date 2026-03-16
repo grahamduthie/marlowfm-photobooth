@@ -58,6 +58,12 @@ if (!file_exists($filePath)) {
 // Send email
 $result = sendPhotoEmail($email, $filePath, $metadata);
 
+// Mark as emailed in metadata so deletion preserves the file
+if ($result['success']) {
+    $allMetadata[$token]['emailed'] = true;
+    file_put_contents($metadataFile, json_encode($allMetadata, JSON_PRETTY_PRINT));
+}
+
 echo json_encode($result);
 
 /**
