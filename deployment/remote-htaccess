@@ -1,0 +1,14 @@
+# Block direct access to config and data files
+<Files "config.php">
+    Require all denied
+</Files>
+
+# Block dot-files (covers .metadata.json and any future hidden files)
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+
+# Block direct access to JSON files anywhere under this root
+<FilesMatch "\.json$">
+    Require all denied
+</FilesMatch>

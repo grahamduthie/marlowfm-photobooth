@@ -1,0 +1,17 @@
+# Systemd user service for photo sync
+# Place in ~/.config/systemd/user/photobooth-sync.service
+# Enable with:
+#   systemctl --user enable photobooth-sync.service
+#   systemctl --user start photobooth-sync.service
+
+[Unit]
+Description=Marlow FM Photobooth Photo Sync
+After=network-online.target
+
+[Service]
+ExecStart=/home/marlowfm/marlowfm-photo-sync.sh
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target
