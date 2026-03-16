@@ -1,0 +1,69 @@
+{
+  "_comment": "Weekly show schedule. Keys are day names (lowercase). Values are objects mapping start hour (24h, as a string) to show name. The current show is determined by finding the most recent start hour on or before the current time. Falls back to 'The Jukebox' if no show is defined.",
+  "monday": {
+    "0":  "Overnight",
+    "6":  "Breakfast Show",
+    "9":  "Mid Morning",
+    "12": "Lunchtime",
+    "14": "Afternoon",
+    "17": "Drive Time",
+    "19": "Evening",
+    "22": "Late Night"
+  },
+  "tuesday": {
+    "0":  "Overnight",
+    "6":  "Breakfast Show",
+    "9":  "Mid Morning",
+    "12": "Lunchtime",
+    "14": "Afternoon",
+    "17": "Drive Time",
+    "19": "Evening",
+    "22": "Late Night"
+  },
+  "wednesday": {
+    "0":  "Overnight",
+    "6":  "Breakfast Show",
+    "9":  "Mid Morning",
+    "12": "Lunchtime",
+    "14": "Afternoon",
+    "17": "Drive Time",
+    "19": "Evening",
+    "22": "Late Night"
+  },
+  "thursday": {
+    "0":  "Overnight",
+    "6":  "Breakfast Show",
+    "9":  "Mid Morning",
+    "12": "Lunchtime",
+    "14": "Afternoon",
+    "17": "Drive Time",
+    "19": "Evening",
+    "22": "Late Night"
+  },
+  "friday": {
+    "0":  "Overnight",
+    "6":  "Breakfast Show",
+    "9":  "Mid Morning",
+    "12": "Lunchtime",
+    "14": "Afternoon",
+    "17": "Drive Time",
+    "19": "Evening",
+    "22": "Late Night"
+  },
+  "saturday": {
+    "0":  "Overnight",
+    "8":  "Weekend Breakfast",
+    "11": "Weekend Mid Morning",
+    "14": "Weekend Afternoon",
+    "17": "Weekend Drive",
+    "20": "Weekend Evening"
+  },
+  "sunday": {
+    "0":  "Overnight",
+    "8":  "Weekend Breakfast",
+    "11": "Weekend Mid Morning",
+    "14": "Weekend Afternoon",
+    "17": "Weekend Drive",
+    "20": "Weekend Evening"
+  }
+}
