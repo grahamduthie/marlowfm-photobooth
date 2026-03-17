@@ -1,6 +1,6 @@
 # Marlow FM Photobooth - AI Assistant Context
 
-**Last updated:** 2026-03-16 — Kiosk boot fix, photo sequence fix, sync permissions fix, filename show-name removed, emailed-photo soft-delete, download page wording fix
+**Last updated:** 2026-03-17 — Space/Enter on welcome or camera screen triggers Take Photo; show checkbox on result screen; show name under title in galleries; date-range calendar filter on both galleries; "Delete and Retake Photo" button deletes current photo before returning to camera
 
 ---
 
@@ -225,13 +225,13 @@ Fields:
 
 1. **Welcome screen** — 9 scrapbook photos in a 3×3 grid, one slot rotates every 7s
 2. User taps **"📸 Take a Photo"** → camera preview (1280×720, 16:9)
-3. User taps **"Take Photo"** → 3-second countdown with beeps (pre-loaded audio, cloneNode for instant play; CSS animation resets each tick for consistent timing) → shutter sound + white flash
+3. User taps **"Take Photo"** (or presses **Space** or **Enter** on either the welcome or camera screen) → 3-second countdown with beeps (pre-loaded audio, cloneNode for instant play; CSS animation resets each tick for consistent timing) → shutter sound + white flash
 4. **Canvas capture:** 1920×1080 JPEG drawn from video; **Marlow FM logo composited bottom-right (150px wide, 20px margin) directly on the canvas** — logo is visible immediately
 5. Canvas JPEG uploaded to `capture.php`; server saves as `_clean.jpg` and copies to `_branded.jpg` (no server-side logo needed — already in image)
 6. **Result screen** shown immediately with the branded photo
-   - **Details panel** (above QR): Title, Who's in this photo?, Show dropdown
+   - **Details panel** (above QR): Title, Who's in this photo?, Show (checkbox + dropdown)
    - Title auto-filled: `"DD Mon YYYY - Photo NNN"`
-   - Show pre-filled from `current-show.php` (schedule-based)
+   - Show checkbox is **ticked by default**; show pre-filled from `current-show.php` (schedule-based). Unchecking the checkbox disables the dropdown and clears the show from metadata.
    - Edits auto-save after 900ms debounce via `update-details.php`
 7. **QR code** displayed — encodes `https://photobooth.marlowfm.co.uk:8444/download.php?token=XXX`
 8. **Email** — optional; `send-email.php` sends via IONOS SMTP with photo embedded
@@ -244,10 +244,10 @@ Fields:
 
 Right-hand panel (white, scrolls if needed), from top to bottom:
 1. **Header** — MFM logo + "Your Photo! – Please edit the title and details"
-2. **Details section** (light grey box) — Title / Who's in this photo? / Show dropdown
+2. **Details section** (light grey box) — Title / Who's in this photo? / Show (checkbox to the left of the dropdown; unchecking disables the dropdown and clears the show)
 3. **QR Code section** (light grey box) — "📱 Save to your phone" + QR image
 4. **Email section** — "📧 Email this photo" + email input + Send button
-5. *(Bottom bar — outside panel)* — "📸 Take Another" | "✓ All Done"
+5. *(Bottom bar — outside panel)* — "🗑️ Delete and Retake Photo" | "✓ All Done"
 
 The "— or —" divider between QR and email was removed to fit without scrolling on 1366×768 kiosk display.
 
@@ -312,7 +312,7 @@ On successful send, `send-email.php` writes `"emailed": true` to the metadata en
 | `GET /photobooth/api/current-show.php` | GET | Returns current/previous show from schedule |
 | `GET /photobooth/api/schedule.php` | GET | Returns weekly show schedule JSON |
 | `GET /photobooth/api/random-photos.php?limit=50` | GET | Returns random branded photo paths |
-| `GET /photobooth/api/gallery-photos.php` | GET | Paginated photo list with metadata; sends `Cache-Control: no-store` headers |
+| `GET /photobooth/api/gallery-photos.php` | GET | Paginated photo list with metadata; params: `page`, `per_page`, `sort`, `show`, `date_from` (YYYY-MM-DD), `date_to` (YYYY-MM-DD); sends `Cache-Control: no-store` headers |
 | `GET /photobooth/thumbs.php?path=XXX&w=320` | GET | GD-generated thumbnail (cached in photos/thumbs/) |
 | `GET /photobooth/download.php?token=XXX` | GET | Download page (local) |
 
@@ -326,7 +326,9 @@ On successful send, `send-email.php` writes `"emailed": true` to the metadata en
 
 - Responsive grid, 24 photos per page
 - **Show filter:** dropdown (`<select>`) — "All shows" default, individual shows listed
+- **Date filter:** "Any date ▾" button opens a calendar popup. First click sets start date; second click sets end date (or same day for single-day filter). Button label shows the active range (e.g. "10 Mar – 17 Mar ▾"). "Clear" resets the filter. Passed to API as `date_from` / `date_to` (YYYY-MM-DD).
 - Sort by date or show
+- **Grid cards:** show title bold at top; show name in muted text on the line below (if both title and show are set)
 - Lightbox: full photo, title, show, people, QR code, edit button
 - Inline edit: title/show/people saved via `update-details.php`
 - Delete with confirmation via `delete-by-token.php`
@@ -338,7 +340,7 @@ On successful send, `send-email.php` writes `"emailed": true` to the metadata en
 
 - Same layout as local gallery
 - **Read-only** — no edit, delete, or email
-- Show filter dropdown
+- Show filter dropdown, date range calendar filter (identical to local)
 - Data from `gallery-photos.php` on remote
 - Accessible at `https://photobooth.marlowfm.co.uk:8444/gallery.php`
 
@@ -390,6 +392,8 @@ chromium --kiosk --user-data-dir=~/.chromium-photobooth http://localhost/photobo
 - Brief white screen on startup is normal (Chromium loading)
 - **Escape:** `Alt+F4` or `F11`
 - **Restart:** `pkill chromium && ~/start-photobooth-kiosk.sh`
+- **Screen blanking disabled:** `light-locker` and `xscreensaver` are suppressed via `~/.config/autostart/light-locker.desktop` and `~/.config/autostart/xscreensaver.desktop` (both contain `Hidden=true`). Do not remove these files — without them, `light-locker` will auto-start in XFCE and blank/lock the screen after idle time, overriding `xset -dpms`.
+- **Keyring popup suppressed:** gnome-keyring is started by PAM at login; with auto-login there is no password to auto-unlock it, causing a popup. The keyring files in `~/.local/share/keyrings/` were deleted so gnome-keyring recreates them with no password and unlocks silently. Chromium uses `--password-store=basic` so it does not use the keyring at all.
 
 ---
 
@@ -402,9 +406,9 @@ chromium --kiosk --user-data-dir=~/.chromium-photobooth http://localhost/photobo
 - Watches with `inotifywait` for `.jpg` and `.metadata.json` changes
 - Syncs with `--delete` flag — remote mirrors local (deletions propagate)
 - Excludes `thumbs/` cache directory
-- **Remote thumbs ownership:** Must be `broadcast:www-data` for rsync to succeed
+- **Remote thumbs ownership:** Must be `www-data:www-data` so PHP can write new thumbnails. Rsync excludes `thumbs/` so broadcast does not need ownership there.
   ```bash
-  ssh broadcast@10.10.0.165 "sudo chown -R broadcast:www-data /var/www/photobooth/photos/thumbs/"
+  ssh broadcast@10.10.0.165 "sudo chown -R www-data:www-data /var/www/photobooth/photos/thumbs/"
   ```
 
 ```bash
@@ -577,7 +581,7 @@ curl -s "https://photobooth.marlowfm.co.uk:8444/thumbs.php?path=YYYY/MM/DD/filen
 
 | Problem | Cause / Fix |
 |---------|-------------|
-| JS changes not taking effect | Increment `?v=N` on the `<script>` tag in `index.html` (currently `?v=4`) |
+| JS changes not taking effect | Increment `?v=N` on the `<script>` tag in `index.html` (currently `?v=7`) |
 | Logo not appearing on photo | Check `_logoImage.complete` — logo must be pre-loaded before capture; reload page |
 | QR code not working on phones | Check sync log; check remote Apache; test URL with curl |
 | Title/details not saving | `update-details.php` requires show field; defaults to "Marlow FM" if blank |
@@ -595,7 +599,9 @@ curl -s "https://photobooth.marlowfm.co.uk:8444/thumbs.php?path=YYYY/MM/DD/filen
 | **White screen on kiosk boot** | GPU buffer allocation failure; ensure `--disable-gpu` flag in `~/start-photobooth-kiosk.sh` |
 | **Multiple photos get same sequence number** | `capture.php` finds MAX sequence across all today's `_clean.jpg` files; clear browser cache if still seen |
 | **Gallery shows duplicate photos** | Browser cache; API now sends `Cache-Control: no-store` headers; hard refresh (Ctrl+F5) |
-| **Sync fails with "Permission denied"** | Remote thumbs ownership wrong; run `ssh broadcast@10.10.0.165 "sudo chown -R broadcast:www-data /var/www/photobooth/photos/thumbs/"` |
+| **Sync fails with "Permission denied"** | Remote thumbs ownership wrong; run `ssh broadcast@10.10.0.165 "sudo chown -R www-data:www-data /var/www/photobooth/photos/thumbs/"` (www-data needs write access; rsync excludes thumbs so broadcast ownership is not required) |
 | **Gallery shows wrong show name** | Show names come from metadata, not filenames; if stale, user can edit in gallery lightbox |
 | **Deleted photo still reachable via QR/email link** | Expected — emailed photos are soft-deleted (files kept) so the download link stays valid until expiry |
 | **Deleted photo still appearing in scrapbook** | Soft-deleted photo's filename not yet excluded; check `emailed`/`deleted` flags are set in `.metadata.json` |
+| **Screen goes blank/locks overnight** | XFCE settings daemon resets X11 screensaver timeout after login — `marlowfm-idle-watcher.sh` re-asserts `xset s 0 0` every 5s to prevent this. Also check `~/.config/autostart/light-locker.desktop` and `xscreensaver.desktop` exist with `Hidden=true`. Run `xset q` to verify timeout is 0. |
+| **Keyring password popup on kiosk** | gnome-keyring started by PAM + auto-login can't auto-unlock; delete `~/.local/share/keyrings/default` — gnome-keyring will recreate it with no password on next login. Also ensure both Chromium instances (kiosk + screensaver) use `--password-store=basic`. |

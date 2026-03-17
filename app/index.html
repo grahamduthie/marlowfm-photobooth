@@ -71,11 +71,14 @@
                             <input type="text" id="people-names" placeholder="e.g. Sarah Jones, guests… (optional)">
                         </div>
                         <div class="detail-row">
-                            <label for="show-select">Show</label>
-                            <select id="show-select">
-                                <option value="">Select show…</option>
-                            </select>
-                            <input type="text" id="show-custom" class="hidden" placeholder="Type the show name…">
+                            <label>Show</label>
+                            <div class="show-row">
+                                <input type="checkbox" id="show-enabled" checked title="Include show name">
+                                <select id="show-select">
+                                    <option value="">Select show…</option>
+                                </select>
+                                <input type="text" id="show-custom" class="hidden" placeholder="Type the show name…">
+                            </div>
                         </div>
                         <div id="update-status" class="update-status-msg"></div>
                     </div>
@@ -110,7 +113,7 @@
 
                 <!-- Bottom navigation bar -->
                 <div class="result-bottom-bar">
-                    <button id="btn-retake" class="btn-retake">📸 Take Another</button>
+                    <button id="btn-retake" class="btn-retake">🗑️ Delete and Retake Photo</button>
                     <button id="btn-done" class="btn-done">✓ All Done</button>
                 </div>
 
@@ -126,6 +129,6 @@
         </div>
     </div>
 
-    <script src="js/photobooth.js?v=4"></script>
+    <script src="js/photobooth.js?v=7"></script>
 </body>
 </html>

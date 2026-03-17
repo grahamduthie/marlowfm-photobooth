@@ -161,6 +161,130 @@ body {
     border-color: var(--light-blue);
 }
 
+/* ── Date range picker ────────────────────────────────────────────────────── */
+.date-filter-wrap {
+    position: relative;
+}
+
+.date-picker-popup {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    z-index: 300;
+    background: var(--white);
+    border: 1.5px solid var(--mid-gray);
+    border-radius: 12px;
+    box-shadow: 0 8px 28px rgba(0,0,0,0.18);
+    padding: 14px;
+    width: 252px;
+    user-select: none;
+}
+.date-picker-popup.hidden { display: none; }
+
+.cal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+.cal-nav-btn {
+    width: 28px;
+    height: 28px;
+    border: 1.5px solid var(--mid-gray);
+    background: var(--white);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 1rem;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+    padding: 0;
+}
+.cal-nav-btn:hover:not(:disabled) { border-color: var(--light-blue); color: var(--dark-blue); }
+.cal-nav-btn:disabled { opacity: 0.3; cursor: default; }
+.cal-month-label {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--dark-blue);
+}
+.cal-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+}
+.cal-day-name {
+    text-align: center;
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    padding: 4px 0 2px;
+}
+.cal-day {
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.78rem;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s;
+}
+.cal-day:hover:not(.cal-day-empty):not(.cal-day-disabled) {
+    background: var(--light-gray);
+}
+.cal-day-empty, .cal-day-disabled {
+    cursor: default;
+    opacity: 0.25;
+}
+.cal-day-selected {
+    background: var(--dark-blue) !important;
+    color: var(--white) !important;
+}
+.cal-day-in-range {
+    background: rgba(26,183,234,0.22) !important;
+    color: var(--dark-blue);
+    border-radius: 0;
+}
+.cal-day-range-start {
+    background: var(--dark-blue) !important;
+    color: var(--white) !important;
+    border-radius: 50% 0 0 50%;
+}
+.cal-day-range-end {
+    background: var(--dark-blue) !important;
+    color: var(--white) !important;
+    border-radius: 0 50% 50% 0;
+}
+.cal-footer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--mid-gray);
+}
+.cal-hint {
+    flex: 1;
+    font-size: 0.71rem;
+    color: var(--text-muted);
+    line-height: 1.3;
+}
+.cal-clear-btn {
+    padding: 4px 10px;
+    background: transparent;
+    color: var(--gray);
+    border: 1.5px solid var(--mid-gray);
+    border-radius: 6px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s;
+}
+.cal-clear-btn:hover { border-color: var(--danger); color: var(--danger); }
 
 /* ── Photo grid ──────────────────────────────────────────────────────────── */
 .gallery-main {
@@ -211,6 +335,14 @@ body {
     font-size: 0.82rem;
     font-weight: 700;
     color: var(--dark-blue);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.thumb-show-name {
+    font-size: 0.74rem;
+    color: var(--text-muted);
+    margin-top: 2px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -711,6 +843,12 @@ body {
         </select>
     </div>
     <div class="controls-divider"></div>
+    <div class="controls-row date-filter-wrap">
+        <span class="controls-label">Date</span>
+        <button id="date-filter-btn" class="filter-btn">Any date ▾</button>
+        <div class="date-picker-popup hidden" id="date-picker-popup"></div>
+    </div>
+    <div class="controls-divider"></div>
     <div class="controls-row">
         <span class="controls-label">Sort</span>
         <button class="sort-btn active" data-sort="date_desc">Newest first</button>
@@ -839,7 +977,11 @@ class GalleryApp {
         this.photos      = [];
         this.currentPage = 1;
         this.currentSort = 'date_desc';
-        this.currentShow = '';
+        this.currentShow     = '';
+        this.currentDateFrom = '';
+        this.currentDateTo   = '';
+        this._calYear        = new Date().getFullYear();
+        this._calMonth       = new Date().getMonth();
         this.lbIndex     = 0;
         this._token      = null;
         this.schedule    = null;
@@ -857,6 +999,20 @@ class GalleryApp {
             this.currentShow = e.target.value;
             this.currentPage = 1;
             this.load();
+        });
+
+        // Date range filter
+        document.getElementById('date-filter-btn').addEventListener('click', e => {
+            e.stopPropagation();
+            this.toggleCalendar();
+        });
+        document.addEventListener('click', e => {
+            const popup = document.getElementById('date-picker-popup');
+            if (!popup.classList.contains('hidden') &&
+                !popup.contains(e.target) &&
+                e.target.id !== 'date-filter-btn') {
+                popup.classList.add('hidden');
+            }
         });
 
         // Sort buttons
@@ -958,7 +1114,9 @@ class GalleryApp {
             per_page: 24,
             sort:     this.currentSort,
         });
-        if (this.currentShow) params.set('show', this.currentShow);
+        if (this.currentShow)     params.set('show',      this.currentShow);
+        if (this.currentDateFrom) params.set('date_from', this.currentDateFrom);
+        if (this.currentDateTo)   params.set('date_to',   this.currentDateTo);
 
         try {
             const res  = await fetch('/photobooth/api/gallery-photos.php?' + params);
@@ -1013,6 +1171,7 @@ class GalleryApp {
                 </div>
                 <div class="thumb-label">
                     <div class="thumb-show">${this.esc(photo.title || photo.show)}</div>
+                    ${photo.title && photo.show ? `<div class="thumb-show-name">${this.esc(photo.show)}</div>` : ''}
                     <div class="thumb-date">${this.esc(photo.date_label)} · ${this.esc(photo.time)}</div>
                     ${photo.people ? `<div class="thumb-people">${this.esc(photo.people)}</div>` : ''}
                 </div>
@@ -1231,6 +1390,17 @@ class GalleryApp {
                     const showEl   = card.querySelector('.thumb-show');
                     let   peopleTh = card.querySelector('.thumb-people');
                     if (showEl) showEl.textContent = title || show;
+                    let showNameEl = card.querySelector('.thumb-show-name');
+                    if (title && show) {
+                        if (!showNameEl) {
+                            showNameEl = document.createElement('div');
+                            showNameEl.className = 'thumb-show-name';
+                            showEl.after(showNameEl);
+                        }
+                        showNameEl.textContent = show;
+                    } else if (showNameEl) {
+                        showNameEl.remove();
+                    }
                     if (people && peopleTh) {
                         peopleTh.textContent = people;
                     } else if (people && !peopleTh) {
@@ -1334,6 +1504,170 @@ class GalleryApp {
         } catch (err) {
             alert('Failed to delete photo. Please try again.');
         }
+    }
+
+    // ── Date range calendar ───────────────────────────────────────────────────
+
+    toggleCalendar() {
+        const popup = document.getElementById('date-picker-popup');
+        if (popup.classList.contains('hidden')) {
+            this.renderCalendar();
+            popup.classList.remove('hidden');
+        } else {
+            popup.classList.add('hidden');
+        }
+    }
+
+    renderCalendar() {
+        const popup   = document.getElementById('date-picker-popup');
+        const today   = new Date(); today.setHours(0,0,0,0);
+        const year    = this._calYear;
+        const month   = this._calMonth;
+        const now     = new Date(); now.setHours(0,0,0,0);
+
+        const MONTHS = ['January','February','March','April','May','June',
+                        'July','August','September','October','November','December'];
+        const DAYS   = ['Mo','Tu','We','Th','Fr','Sa','Su'];
+
+        const firstDay = new Date(year, month, 1);
+        const lastDate = new Date(year, month + 1, 0).getDate();
+        const startDow = (firstDay.getDay() + 6) % 7; // Mon=0 … Sun=6
+
+        const isCurrentMonth = year === now.getFullYear() && month === now.getMonth();
+        const isEarliestMonth = year === 2020 && month === 0; // arbitrary old limit
+
+        let html = `
+            <div class="cal-header">
+                <button class="cal-nav-btn" id="cal-prev" ${isEarliestMonth ? 'disabled' : ''}>‹</button>
+                <span class="cal-month-label">${MONTHS[month]} ${year}</span>
+                <button class="cal-nav-btn" id="cal-next" ${isCurrentMonth ? 'disabled' : ''}>›</button>
+            </div>
+            <div class="cal-grid">
+        `;
+
+        DAYS.forEach(d => { html += `<div class="cal-day-name">${d}</div>`; });
+
+        for (let i = 0; i < startDow; i++) {
+            html += `<div class="cal-day cal-day-empty"></div>`;
+        }
+
+        const from = this.currentDateFrom;
+        const to   = this.currentDateTo;
+
+        for (let d = 1; d <= lastDate; d++) {
+            const ds   = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+            const date = new Date(year, month, d);
+            const isFuture = date > now;
+
+            let cls = 'cal-day';
+            if (isFuture) {
+                cls += ' cal-day-disabled';
+            } else if (from && to && from !== to) {
+                if (ds === from)               cls += ' cal-day-range-start';
+                else if (ds === to)            cls += ' cal-day-range-end';
+                else if (ds > from && ds < to) cls += ' cal-day-in-range';
+            } else if ((from && ds === from) || (to && ds === to)) {
+                cls += ' cal-day-selected';
+            }
+
+            const attr = isFuture ? '' : `data-date="${ds}"`;
+            html += `<div class="${cls}" ${attr}>${d}</div>`;
+        }
+
+        html += `</div>`;
+
+        // Footer hint
+        let hint = '';
+        if (!from)       hint = 'Pick a start date';
+        else if (!to)    hint = 'Now pick an end date';
+
+        html += `
+            <div class="cal-footer">
+                <span class="cal-hint">${hint}</span>
+                <button class="cal-clear-btn" id="cal-clear">Clear</button>
+            </div>
+        `;
+
+        popup.innerHTML = html;
+
+        // Nav buttons
+        document.getElementById('cal-prev').addEventListener('click', e => {
+            e.stopPropagation();
+            this._calMonth--;
+            if (this._calMonth < 0) { this._calMonth = 11; this._calYear--; }
+            this.renderCalendar();
+        });
+        document.getElementById('cal-next').addEventListener('click', e => {
+            e.stopPropagation();
+            this._calMonth++;
+            if (this._calMonth > 11) { this._calMonth = 0; this._calYear++; }
+            this.renderCalendar();
+        });
+
+        // Clear button
+        document.getElementById('cal-clear').addEventListener('click', e => {
+            e.stopPropagation();
+            this.currentDateFrom = '';
+            this.currentDateTo   = '';
+            this.updateDateFilterBtn();
+            document.getElementById('date-picker-popup').classList.add('hidden');
+            this.currentPage = 1;
+            this.load();
+        });
+
+        // Day clicks
+        popup.querySelectorAll('.cal-day[data-date]').forEach(el => {
+            el.addEventListener('click', e => {
+                e.stopPropagation();
+                this.handleDayClick(el.dataset.date);
+            });
+        });
+    }
+
+    handleDayClick(ds) {
+        const from = this.currentDateFrom;
+        const to   = this.currentDateTo;
+
+        if (!from || (from && to)) {
+            // Start fresh: set start date only, stay open
+            this.currentDateFrom = ds;
+            this.currentDateTo   = '';
+            this.renderCalendar();
+        } else {
+            // Have start, now pick end
+            if (ds < from) {
+                // Clicked before start → swap
+                this.currentDateTo   = from;
+                this.currentDateFrom = ds;
+            } else {
+                this.currentDateTo = ds;
+            }
+            this.updateDateFilterBtn();
+            document.getElementById('date-picker-popup').classList.add('hidden');
+            this.currentPage = 1;
+            this.load();
+        }
+    }
+
+    updateDateFilterBtn() {
+        const btn  = document.getElementById('date-filter-btn');
+        const from = this.currentDateFrom;
+        const to   = this.currentDateTo;
+
+        if (!from) {
+            btn.textContent = 'Any date ▾';
+            btn.classList.remove('active');
+            return;
+        }
+
+        const fmt = s => {
+            const [, m, d] = s.split('-');
+            const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+            return `${parseInt(d)} ${MONTHS[parseInt(m)-1]}`;
+        };
+
+        btn.textContent = (!to || from === to) ? `${fmt(from)} ▾` : `${fmt(from)} – ${fmt(to)} ▾`;
+        btn.classList.add('active');
     }
 
     // ── Utility ───────────────────────────────────────────────────────────────

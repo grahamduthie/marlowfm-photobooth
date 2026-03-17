@@ -57,6 +57,22 @@ class PhotoboothApp {
                 this.showScreen('welcome-screen');
             });
 
+        // Result screen – show enabled checkbox
+        document.getElementById('show-enabled')
+            ?.addEventListener('change', (e) => {
+                const enabled = e.target.checked;
+                const select = document.getElementById('show-select');
+                select.disabled = !enabled;
+                if (!enabled) {
+                    document.getElementById('show-custom').classList.add('hidden');
+                    this.currentShow = '';
+                } else {
+                    // Restore the selected value when re-enabling
+                    this.currentShow = (select.value && select.value !== '__other__') ? select.value : '';
+                }
+                this.scheduleUpdateDetails();
+            });
+
         // Result screen – show selector
         document.getElementById('show-select')
             ?.addEventListener('change', (e) => {
@@ -94,6 +110,20 @@ class PhotoboothApp {
         // Result screen – email
         document.getElementById('btn-send-email')
             ?.addEventListener('click', () => this.sendEmail());
+
+        // Keyboard shortcuts: Space / Enter on welcome → start; on camera → capture
+        document.addEventListener('keydown', (e) => {
+            if (e.code !== 'Space' && e.code !== 'Enter') return;
+            if (document.activeElement?.tagName === 'BUTTON') return;
+            const active = document.querySelector('.screen.active')?.id;
+            if (active === 'welcome-screen') {
+                e.preventDefault();
+                this.goToPreview();
+            } else if (active === 'preview-screen') {
+                e.preventDefault();
+                this.capturePhoto();
+            }
+        });
 
         // Result screen – navigation
         document.getElementById('btn-retake')
@@ -378,8 +408,10 @@ class PhotoboothApp {
         // Show the captured photo
         document.getElementById('captured-photo').src = this.capturedImageData;
 
-        // Pre-populate show field with auto-detected value
+        // Reset show checkbox + dropdown
+        document.getElementById('show-enabled').checked = true;
         const select = document.getElementById('show-select');
+        select.disabled = false;
         if (select && this.currentShow) select.value = this.currentShow;
         document.getElementById('show-custom').value = '';
         document.getElementById('show-custom').classList.add('hidden');
@@ -560,6 +592,16 @@ class PhotoboothApp {
     retakePhoto() {
         this._saveNonce++; // discard any in-flight save result
         clearTimeout(this._updateTimer);
+
+        // Delete the current photo if it has already been saved
+        const tokenToDelete = this.photoToken;
+        if (tokenToDelete) {
+            fetch('/photobooth/api/delete-by-token.php', {
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body:    JSON.stringify({ token: tokenToDelete }),
+            }).catch(() => {}); // fire-and-forget; don't block navigation
+        }
 
         this.capturedImageData = null;
         this.currentShow       = '';

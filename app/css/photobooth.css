@@ -580,6 +580,28 @@ body {
     border-color: var(--mfm-light-blue);
 }
 
+/* Show row: checkbox + dropdown inline */
+.show-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.show-row select,
+.show-row input[type="text"] {
+    flex: 1;
+    width: auto;
+    min-width: 0;
+}
+
+#show-enabled {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    cursor: pointer;
+    accent-color: var(--mfm-light-blue);
+}
+
 .update-status-msg {
     font-size: 0.78rem;
     min-height: 16px;

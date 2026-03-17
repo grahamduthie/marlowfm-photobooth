@@ -4,10 +4,12 @@
  * Returns a paginated, filterable, sortable list of all photos.
  *
  * GET params:
- *   page       int   (default 1)
- *   per_page   int   (default 24, max 48)
+ *   page       int     (default 1)
+ *   per_page   int     (default 24, max 48)
  *   sort       string  date_desc | date_asc | show  (default date_desc)
  *   show       string  filter by show name (optional)
+ *   date_from  string  YYYY-MM-DD — only include photos on or after this date (optional)
+ *   date_to    string  YYYY-MM-DD — only include photos on or before this date (optional)
  */
 
 // Prevent browser caching - gallery must always show latest photos
@@ -21,7 +23,9 @@ require_once '/home/marlowfm/photobooth-config/config.php';
 $page       = max(1, (int)($_GET['page']     ?? 1));
 $perPage    = min(48, max(1, (int)($_GET['per_page'] ?? 24)));
 $sort       = in_array($_GET['sort'] ?? '', ['date_asc', 'show']) ? $_GET['sort'] : 'date_desc';
-$filterShow = trim($_GET['show'] ?? '');
+$filterShow     = trim($_GET['show']      ?? '');
+$filterDateFrom = trim($_GET['date_from'] ?? '');
+$filterDateTo   = trim($_GET['date_to']   ?? '');
 
 // ── Load metadata ─────────────────────────────────────────────────────────
 $metadataFile = PHOTO_BASE_DIR . '/.metadata.json';
@@ -49,6 +53,12 @@ foreach ($allMetadata as $token => $meta) {
     $showCounts[$show] = ($showCounts[$show] ?? 0) + 1;
 
     if ($filterShow !== '' && $show !== $filterShow) continue;
+
+    if ($filterDateFrom !== '' || $filterDateTo !== '') {
+        $photoDate = date('Y-m-d', strtotime($created));
+        if ($filterDateFrom !== '' && $photoDate < $filterDateFrom) continue;
+        if ($filterDateTo   !== '' && $photoDate > $filterDateTo)   continue;
+    }
 
     // Consolidate people field (new style) with legacy presenter/guests
     $people = $meta['people'] ?? '';
@@ -103,6 +113,8 @@ echo json_encode([
     'per_page'    => $perPage,
     'pages'       => $pages,
     'shows'       => $shows,
-    'sort'        => $sort,
-    'filter_show' => $filterShow,
+    'sort'             => $sort,
+    'filter_show'      => $filterShow,
+    'filter_date_from' => $filterDateFrom,
+    'filter_date_to'   => $filterDateTo,
 ], JSON_UNESCAPED_UNICODE);
