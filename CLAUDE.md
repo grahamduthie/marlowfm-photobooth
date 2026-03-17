@@ -1,6 +1,6 @@
 # Marlow FM Photobooth - AI Assistant Context
 
-**Last updated:** 2026-03-17 — Space/Enter on welcome or camera screen triggers Take Photo; show checkbox on result screen; show name under title in galleries; date-range calendar filter on both galleries; "Delete and Retake Photo" button deletes current photo before returning to camera
+**Last updated:** 2026-03-17 — Refactored gallery into separate CSS/JS files; Space/Enter keyboard shortcuts; show checkbox; show name under title in galleries; date-range calendar filter; "Delete and Retake Photo" button
 
 ---
 
@@ -107,8 +107,10 @@ Note: this environment has no TTY so `git config credential.helper store` does n
 │   │   ├── gallery.php            # Gallery page with lightbox + edit
 │   │   ├── thumbs.php             # On-demand JPEG thumbnail generator (GD)
 │   │   ├── download.php           # Token-based photo download page
-│   │   ├── css/photobooth.css     # All styles (Marlow FM branding)
-│   │   ├── js/photobooth.js       # Frontend SPA logic (v=4 cache buster)
+│   │   ├── css/photobooth.css     # Main app styles (Marlow FM branding)
+│   │   ├── css/gallery.css        # Gallery page styles
+│   │   ├── js/photobooth.js       # Frontend SPA logic (v=7 cache buster)
+│   │   ├── js/gallery.js          # Gallery page logic (v=1 cache buster)
 │   │   ├── assets/
 │   │   │   ├── mfm_logo.png       # Marlow FM logo
 │   │   │   ├── beep.wav           # Countdown beep sound
@@ -155,9 +157,11 @@ Note: this environment has no TTY so `git config credential.helper store` does n
 │   │   └── *_branded.jpg          # Identical to clean (logo added client-side)
 │   └── .metadata.json             # Token → metadata map (synced from local)
 ├── download.php                   # Mobile download page (phones reach this via QR)
-├── gallery.php                    # Read-only remote gallery
+├── gallery.php                    # Read-only remote gallery (HTML shell only)
 ├── gallery-photos.php             # API: photo list for remote gallery
 ├── thumbs.php                     # Thumbnail generator
+├── css/gallery.css                # Gallery styles (deployed from repo)
+├── js/gallery.js                  # Gallery logic (deployed from repo; read-only version)
 ├── assets/mfm_logo.png            # Logo for download page header
 ├── config.php                     # Minimal remote config
 └── .htaccess                      # Blocks .json, config.php, directory listing
@@ -343,6 +347,18 @@ On successful send, `send-email.php` writes `"emailed": true` to the metadata en
 - Show filter dropdown, date range calendar filter (identical to local)
 - Data from `gallery-photos.php` on remote
 - Accessible at `https://photobooth.marlowfm.co.uk:8444/gallery.php`
+
+**Deploying gallery changes to remote:** The gallery CSS and JS are now separate files. To deploy updates:
+```bash
+# CSS (identical on both machines — no path differences)
+scp app/css/gallery.css broadcast@10.10.0.165:/tmp/gallery.css
+ssh broadcast@10.10.0.165 "sudo cp /tmp/gallery.css /var/www/photobooth/css/gallery.css"
+
+# JS (remote version differs — extract from remote gallery.php or maintain separately)
+# gallery.php HTML shell (no CSS/JS inline — just update if HTML structure changes)
+ssh broadcast@10.10.0.165 "sudo cp /tmp/gallery.php /var/www/photobooth/gallery.php"
+```
+Note: `gallery.js` on the remote is a separate read-only build (no edit/delete/email). It lives only on the remote server; the repo version is the full local version.
 
 ## Photo Deletion
 
