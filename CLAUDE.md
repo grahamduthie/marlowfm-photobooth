@@ -1,6 +1,6 @@
 # Marlow FM Photobooth - AI Assistant Context
 
-**Last updated:** 2026-03-17 — Refactored gallery into separate CSS/JS files; Space/Enter keyboard shortcuts; show checkbox; show name under title in galleries; date-range calendar filter; "Delete and Retake Photo" button
+**Last updated:** 2026-03-17 — Offline resilience: WiFi setup on kiosk boot; QR replaced with offline message when no internet; email queue with cron-driven retry; photo sync before queued sends
 
 ---
 
@@ -109,7 +109,7 @@ Note: this environment has no TTY so `git config credential.helper store` does n
 │   │   ├── download.php           # Token-based photo download page
 │   │   ├── css/photobooth.css     # Main app styles (Marlow FM branding)
 │   │   ├── css/gallery.css        # Gallery page styles
-│   │   ├── js/photobooth.js       # Frontend SPA logic (v=7 cache buster)
+│   │   ├── js/photobooth.js       # Frontend SPA logic (v=8 cache buster)
 │   │   ├── js/gallery.js          # Gallery page logic (v=1 cache buster)
 │   │   ├── assets/
 │   │   │   ├── mfm_logo.png       # Marlow FM logo
@@ -117,15 +117,18 @@ Note: this environment has no TTY so `git config credential.helper store` does n
 │   │   │   └── shutter.wav        # Shutter sound
 │   │   ├── vendor/                # Composer dependencies (PHPMailer)
 │   │   └── api/
-│   │       ├── capture.php        # Save photo, generate token + default title
-│   │       ├── update-details.php # Update title/show/people by token
-│   │       ├── send-email.php     # Email photo via IONOS SMTP (PHPMailer)
-│   │       ├── current-show.php   # Detect current show from schedule.json
-│   │       ├── schedule.php       # Serve weekly show schedule as JSON
-│   │       ├── random-photos.php  # Return random branded photos (scrapbook)
-│   │       ├── gallery-photos.php # Paginated/filterable photo list
-│   │       ├── delete-photo.php   # Delete photo by filename
-│   │       └── delete-by-token.php# Delete photo by token
+│   │       ├── capture.php           # Save photo, generate token + default title
+│   │       ├── update-details.php    # Update title/show/people by token
+│   │       ├── send-email.php        # Email photo via IONOS SMTP; queues if offline
+│   │       ├── _email-core.php       # Shared: PHPMailer send, connectivity check, queue write
+│   │       ├── connectivity.php      # Internet check endpoint (called by browser after capture)
+│   │       ├── process-email-queue.php # Cron: sync photos then send queued emails
+│   │       ├── current-show.php      # Detect current show from schedule.json
+│   │       ├── schedule.php          # Serve weekly show schedule as JSON
+│   │       ├── random-photos.php     # Return random branded photos (scrapbook)
+│   │       ├── gallery-photos.php    # Paginated/filterable photo list
+│   │       ├── delete-photo.php      # Delete photo by filename
+│   │       └── delete-by-token.php   # Delete photo by token
 │   ├── admin/                     # Admin panel
 │   ├── gallery/                   # Piwigo gallery integration
 │   └── logs/
@@ -135,7 +138,8 @@ Note: this environment has no TTY so `git config credential.helper store` does n
 │
 ├── photobooth-config/
 │   ├── config.php                 # Main config (paths, SMTP, constants)
-│   └── schedule.json              # Weekly show schedule
+│   ├── schedule.json              # Weekly show schedule
+│   └── email-queue.json           # Pending email queue (created on first offline send)
 │
 ├── photos/                        # *** NOTE: actual path is /photos (root) ***
 │                                  #     config says PHOTO_BASE_DIR = /photos
@@ -237,9 +241,9 @@ Fields:
    - Title auto-filled: `"DD Mon YYYY - Photo NNN"`
    - Show checkbox is **ticked by default**; show pre-filled from `current-show.php` (schedule-based). Unchecking the checkbox disables the dropdown and clears the show from metadata.
    - Edits auto-save after 900ms debounce via `update-details.php`
-7. **QR code** displayed — encodes `https://photobooth.marlowfm.co.uk:8444/download.php?token=XXX`
-8. **Email** — optional; `send-email.php` sends via IONOS SMTP with photo embedded
-9. **Photo sync** — `inotifywait` detects new files → rsync to remote within ~2s
+7. **Connectivity check** — `connectivity.php` tests TCP to SMTP host (2s timeout). If online: **QR code** shown (fetched from `api.qrserver.com`). If offline: QR replaced with an offline message directing the user to the email section.
+8. **Email** — optional; `send-email.php` checks connectivity first. If online: sends immediately via IONOS SMTP. If offline: adds `{email, token}` to `email-queue.json` and returns `{queued: true}` — browser shows "we'll send when back online". Duplicate sends for the same email+token are deduplicated.
+9. **Photo sync** — `inotifywait` detects new files → rsync to remote within ~2s. If offline, sync fails silently; the next photo taken after reconnection triggers a full catch-up rsync.
 10. Phone scans QR → remote `download.php` shows title, show, people + photo + platform-specific save instructions (iOS: long-press; Android: download button)
 
 ---
@@ -249,7 +253,7 @@ Fields:
 Right-hand panel (white, scrolls if needed), from top to bottom:
 1. **Header** — MFM logo + "Your Photo! – Please edit the title and details"
 2. **Details section** (light grey box) — Title / Who's in this photo? / Show (checkbox to the left of the dropdown; unchecking disables the dropdown and clears the show)
-3. **QR Code section** (light grey box) — "📱 Save to your phone" + QR image
+3. **QR Code section** (light grey box) — "📱 Save to your phone" + QR image, or offline message if no internet
 4. **Email section** — "📧 Email this photo" + email input + Send button
 5. *(Bottom bar — outside panel)* — "🗑️ Delete and Retake Photo" | "✓ All Done"
 
@@ -291,7 +295,7 @@ ssh broadcast@10.10.0.165 "
 
 ---
 
-## Email (`send-email.php`)
+## Email (`send-email.php` + `_email-core.php`)
 
 Sent via IONOS SMTP. Content:
 - Subject: "Your Marlow FM Photobooth Photo!"
@@ -300,9 +304,19 @@ Sent via IONOS SMTP. Content:
 - Embedded photo (CID attachment)
 - Download link (`https://photobooth.marlowfm.co.uk:8444/download.php?token=...`) + expiry notice
 
-The download link in emails uses the same remote HTTPS URL as the QR code — **not** the local machine IP. This means the link works for recipients anywhere, not just on the studio network, and is unaffected by the local machine's IP address changing.
+The download link in emails uses the same remote HTTPS URL as the QR code — **not** the local machine IP.
 
-On successful send, `send-email.php` writes `"emailed": true` to the metadata entry. This flag causes `delete-by-token.php` and `delete-photo.php` to perform a **soft-delete** instead of removing the files — see Photo Deletion below.
+**Offline queuing:** `send-email.php` calls `isInternetAvailable()` (2s TCP test to SMTP host) before attempting PHPMailer. If offline, the `{email, token}` pair is written to `/home/marlowfm/photobooth-config/email-queue.json` and `{success:true, queued:true}` is returned. PHPMailer has a 15-second timeout to prevent hangs if connectivity drops mid-send.
+
+**Queue processor:** `process-email-queue.php` runs every minute via cron. It exits immediately if the queue is empty or SMTP is unreachable. When online, it first runs a full rsync to ensure offline photos are on the remote server (so download links work), then sends each queued email. Items that fail to send are kept for the next attempt. On success, `emailed:true` is set in metadata.
+
+On successful send (immediate or queued), `emailed: true` is written to the metadata entry. This flag causes `delete-by-token.php` and `delete-photo.php` to perform a **soft-delete** instead of removing the files — see Photo Deletion below.
+
+**Cron jobs** (marlowfm user):
+```
+0 3 * * *  /home/marlowfm/marlowfm-photo-cleanup.sh
+* * * * *  /usr/bin/php /home/marlowfm/marlowfm-photobooth/app/api/process-email-queue.php >> /home/marlowfm/marlowfm-photobooth/logs/email.log 2>&1
+```
 
 ---
 
@@ -312,7 +326,8 @@ On successful send, `send-email.php` writes `"emailed": true` to the metadata en
 |----------|--------|-------------|
 | `POST /photobooth/api/capture.php` | POST multipart | Saves photo, returns token + URLs + default title |
 | `POST /photobooth/api/update-details.php` | POST JSON | Updates title/show/people; requires show (defaults to "Marlow FM") |
-| `POST /photobooth/api/send-email.php` | POST JSON | Emails download link via IONOS SMTP |
+| `POST /photobooth/api/send-email.php` | POST JSON | Emails download link via IONOS SMTP; queues if offline |
+| `GET /photobooth/api/connectivity.php` | GET | Tests internet (TCP to SMTP host); returns `{online: bool}` |
 | `GET /photobooth/api/current-show.php` | GET | Returns current/previous show from schedule |
 | `GET /photobooth/api/schedule.php` | GET | Returns weekly show schedule JSON |
 | `GET /photobooth/api/random-photos.php?limit=50` | GET | Returns random branded photo paths |
@@ -401,6 +416,7 @@ Both `delete-by-token.php` (used by gallery) and `delete-photo.php` apply this l
 chromium --kiosk --user-data-dir=~/.chromium-photobooth http://localhost/photobooth/
 ```
 - Script: `~/start-photobooth-kiosk.sh` (XFCE autostart)
+- **WiFi setup on new location boot:** If NetworkManager is not connected after a 15-second wait, `xfce4-terminal` opens running `nmtui` for WiFi selection. Terminal closes automatically when the user quits nmtui; script then waits up to 20s for connection to establish before launching Chromium.
 - Disables X11 blanking; applies display gamma correction
 - **Note:** `--app=` is NOT used with `--kiosk` — they conflict and cause white screen issues
 - **GPU disabled:** `--disable-gpu` flag required on Toshiba C850D-12L (older ATI Radeon fails GPU buffer allocation)
@@ -500,7 +516,7 @@ Key constants:
 - `LOGO_SIZE` = 150 (px width, used as reference — actual compositing is client-side)
 - `LOGO_MARGIN` = 20 (px from edge)
 - `JPEG_QUALITY` = 95
-- `SMTP_HOST` = `smtp.ionos.co.uk:587` TLS
+- `SMTP_HOST` = `smtp.ionos.co.uk`, `SMTP_PORT` = `587`, `SMTP_SECURE` = `tls`
 - `SMTP_USER` = `studio@marlowfm.co.uk`
 - `SMTP_PASS` = `Quarrywood975!`
 - `SCHEDULE_FILE` = `/home/marlowfm/photobooth-config/schedule.json`
@@ -564,8 +580,14 @@ tail -f /home/marlowfm/marlowfm-photobooth/logs/email.log
 find /photos -name '*_branded.jpg' | wc -l
 
 # Force cache refresh — increment ?v= after JS changes
-grep 'photobooth.js' /home/marlowfm/marlowfm-photobooth/app/index.html   # main app (v=7)
+grep 'photobooth.js' /home/marlowfm/marlowfm-photobooth/app/index.html   # main app (v=8)
 grep 'gallery.js'    /home/marlowfm/marlowfm-photobooth/app/gallery.php  # gallery (v=1)
+
+# Check email queue
+cat /home/marlowfm/photobooth-config/email-queue.json
+
+# Manually process email queue (normally run by cron)
+/usr/bin/php /home/marlowfm/marlowfm-photobooth/app/api/process-email-queue.php
 
 
 # ── Remote machine ─────────────────────────────────────────────────────
@@ -598,7 +620,7 @@ curl -s "https://photobooth.marlowfm.co.uk:8444/thumbs.php?path=YYYY/MM/DD/filen
 
 | Problem | Cause / Fix |
 |---------|-------------|
-| Main app JS changes not taking effect | Increment `?v=N` on the `photobooth.js` `<script>` tag in `index.html` (currently `?v=7`) |
+| Main app JS changes not taking effect | Increment `?v=N` on the `photobooth.js` `<script>` tag in `index.html` (currently `?v=8`) |
 | Gallery JS/CSS changes not taking effect | Increment `?v=N` on the `gallery.js` `<script>` tag in `gallery.php` (currently `?v=1`); CSS has no cache buster — force with Ctrl+F5 |
 | Logo not appearing on photo | Check `_logoImage.complete` — logo must be pre-loaded before capture; reload page |
 | QR code not working on phones | Check sync log; check remote Apache; test URL with curl |
@@ -623,3 +645,8 @@ curl -s "https://photobooth.marlowfm.co.uk:8444/thumbs.php?path=YYYY/MM/DD/filen
 | **Deleted photo still appearing in scrapbook** | Soft-deleted photo's filename not yet excluded; check `emailed`/`deleted` flags are set in `.metadata.json` |
 | **Screen goes blank/locks overnight** | XFCE settings daemon resets X11 screensaver timeout after login — `marlowfm-idle-watcher.sh` re-asserts `xset s 0 0` every 5s to prevent this. Also check `~/.config/autostart/light-locker.desktop` and `xscreensaver.desktop` exist with `Hidden=true`. Run `xset q` to verify timeout is 0. |
 | **Keyring password popup on kiosk** | gnome-keyring started by PAM + auto-login can't auto-unlock; delete `~/.local/share/keyrings/default` — gnome-keyring will recreate it with no password on next login. Also ensure both Chromium instances (kiosk + screensaver) use `--password-store=basic`. |
+| **QR code not shown (offline message instead)** | Expected when no internet — `connectivity.php` tested SMTP and failed. Direct the user to the email field; email will be queued and sent when connectivity restores. |
+| **Queued email never sent** | Check `email-queue.json` exists and has entries; run `process-email-queue.php` manually; check `email.log` for sync/send errors; confirm SMTP credentials in config.php |
+| **Queued email sent but download link doesn't work** | Photo may not have synced — `process-email-queue.php` runs rsync before sending but SSH or remote may have been down; check `photo-sync.log`; manually rsync or restart `photobooth-sync.service` |
+| **WiFi prompt not appearing on new-location boot** | Check `~/start-photobooth-kiosk.sh` has the WiFi check block; confirm `nmtui` and `xfce4-terminal` are installed (`which nmtui`, `which xfce4-terminal`) |
+| **Kiosk launches before WiFi is ready** | The startup script waits 15s for NM to auto-connect; if the network is slow to associate, increase the `seq 1 15` loop limit in the WiFi check block |

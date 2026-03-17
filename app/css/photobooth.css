@@ -443,6 +443,20 @@ body {
     border-radius: 8px;
 }
 
+.qr-offline-state {
+    font-size: 0.85rem;
+    line-height: 1.55;
+    padding: 10px 12px;
+    background: #f0f4ff;
+    border-radius: 8px;
+    color: #444;
+}
+.qr-offline-state strong {
+    color: #00257b;
+    display: block;
+    margin-bottom: 4px;
+}
+
 /* Divider */
 .action-divider {
     text-align: center;

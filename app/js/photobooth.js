@@ -15,6 +15,7 @@ class PhotoboothApp {
         this.capturedImageData = null;
         this.schedule        = null;
         this._saveNonce      = 0;   // used to discard stale auto-save responses
+        this.isOnline        = true; // updated by connectivity check after each capture
         this._updateTimer    = null;
         this.scrapbookPool        = [];  // all available photo URLs
         this.scrapbookShown       = [];  // URLs currently on screen (index = position)
@@ -427,6 +428,7 @@ class PhotoboothApp {
         document.getElementById('qr-spinner').classList.remove('hidden');
         document.getElementById('qr-ready').classList.add('hidden');
         document.getElementById('qr-error').classList.add('hidden');
+        document.getElementById('qr-offline').classList.add('hidden');
 
         // Reset email section
         document.getElementById('email-address').value = '';
@@ -479,8 +481,13 @@ class PhotoboothApp {
                     titleEl.placeholder = '';
                 }
 
-                const downloadUrl = 'https://photobooth.marlowfm.co.uk:8444/download.php?token=' + this.photoToken;
-                this.showQRCode(downloadUrl);
+                this.isOnline = await this.checkConnectivity();
+                if (this.isOnline) {
+                    const downloadUrl = 'https://photobooth.marlowfm.co.uk:8444/download.php?token=' + this.photoToken;
+                    this.showQRCode(downloadUrl);
+                } else {
+                    this.showQROffline();
+                }
             } else {
                 this.showQRError('Could not save photo — please try again');
             }
@@ -507,6 +514,23 @@ class PhotoboothApp {
         const errEl = document.getElementById('qr-error');
         errEl.textContent = '⚠️ ' + message;
         errEl.classList.remove('hidden');
+    }
+
+    showQROffline() {
+        document.getElementById('qr-spinner').classList.add('hidden');
+        document.getElementById('qr-ready').classList.add('hidden');
+        document.getElementById('qr-error').classList.add('hidden');
+        document.getElementById('qr-offline').classList.remove('hidden');
+    }
+
+    async checkConnectivity() {
+        try {
+            const response = await fetch('/photobooth/api/connectivity.php', { cache: 'no-store' });
+            const data = await response.json();
+            return data.online === true;
+        } catch (e) {
+            return false;
+        }
     }
 
     // ── Details Update (debounced, auto-triggered by input) ─────────────────
@@ -574,7 +598,9 @@ class PhotoboothApp {
             const result = await response.json();
 
             if (result.success) {
-                statusEl.textContent = '✓ Email sent! Check your inbox.';
+                statusEl.textContent = result.queued
+                    ? '✓ Saved! We\'ll send your photo to ' + email + ' as soon as we\'re back online.'
+                    : '✓ Email sent! Check your inbox.';
                 statusEl.className   = 'email-status-msg success';
                 document.getElementById('email-address').value = '';
             } else {
