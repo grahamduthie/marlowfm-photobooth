@@ -75,7 +75,7 @@ SSH key from local marlowfm user is already installed on broadcast@10.10.0.165 (
 
 Repository: `https://github.com/grahamduthie/marlowfm-photobooth`
 
-The remote URL has a Personal Access Token embedded so `git push` works without prompting:
+Single branch: **`main`**. The remote URL has a Personal Access Token embedded so `git push` works without prompting:
 
 ```bash
 git remote get-url origin  # should show token embedded in URL
@@ -563,8 +563,9 @@ tail -f /home/marlowfm/marlowfm-photobooth/logs/email.log
 # Count local photos
 find /photos -name '*_branded.jpg' | wc -l
 
-# Force cache refresh (increment ?v= in index.html after JS changes)
-grep 'photobooth.js' /home/marlowfm/marlowfm-photobooth/app/index.html
+# Force cache refresh — increment ?v= after JS changes
+grep 'photobooth.js' /home/marlowfm/marlowfm-photobooth/app/index.html   # main app (v=7)
+grep 'gallery.js'    /home/marlowfm/marlowfm-photobooth/app/gallery.php  # gallery (v=1)
 
 
 # ── Remote machine ─────────────────────────────────────────────────────
@@ -597,7 +598,8 @@ curl -s "https://photobooth.marlowfm.co.uk:8444/thumbs.php?path=YYYY/MM/DD/filen
 
 | Problem | Cause / Fix |
 |---------|-------------|
-| JS changes not taking effect | Increment `?v=N` on the `<script>` tag in `index.html` (currently `?v=7`) |
+| Main app JS changes not taking effect | Increment `?v=N` on the `photobooth.js` `<script>` tag in `index.html` (currently `?v=7`) |
+| Gallery JS/CSS changes not taking effect | Increment `?v=N` on the `gallery.js` `<script>` tag in `gallery.php` (currently `?v=1`); CSS has no cache buster — force with Ctrl+F5 |
 | Logo not appearing on photo | Check `_logoImage.complete` — logo must be pre-loaded before capture; reload page |
 | QR code not working on phones | Check sync log; check remote Apache; test URL with curl |
 | Title/details not saving | `update-details.php` requires show field; defaults to "Marlow FM" if blank |
